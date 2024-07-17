@@ -1,167 +1,90 @@
-﻿using System;
-using System.Net.Http;
-using System.IO;
-using System.Threading.Tasks;
+using PythonApi;
 using System.Windows.Forms;
+using System;
 
 namespace WindowsFormsApp
 {
     public partial class Form1 : Form
     {
-        private static readonly HttpClient client = new HttpClient();
-        private string audioGuid = string.Empty;
-        private string newAudioGuid = string.Empty;
-        private string audioFilePath = string.Empty;
+        private string m_audioGuid = string.Empty;
+        private string m_newAudioGuid = string.Empty;
+        private string m_audioFilePath = string.Empty;
+        RequestApi Request = new RequestApi();
 
 
         public Form1()
         {
             InitializeComponent();
+            Log.Logger.Debug("Form1", "Form1", "Compilação iniciada com sucesso");
         }
 
-        private async void CreateButton_Click(object sender, EventArgs e)
+        private async void CreateButton_Click(object p_sender, EventArgs p_e)
         {
-            audioGuid = guidTextBox.Text;
+            m_audioGuid = guidTextBox.Text;
 
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            using (OpenFileDialog l_openFileDialog = new OpenFileDialog())
             {
-                openFileDialog.Filter = "Audio files (*.mp3;*.wav)|*.mp3;*.wav|All files (*.*)|*.*";
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                l_openFileDialog.Filter = "Audio files (*.mp3;*.wav)|*.mp3;*.wav|All files (*.*)|*.*";
+                if (l_openFileDialog.ShowDialog() == DialogResult.OK)
                 {
-                    audioFilePath = openFileDialog.FileName;
+                    m_audioFilePath = l_openFileDialog.FileName;
 
-                    string fileName = Path.GetFileName(audioFilePath);
-                    string newFileName = $"{fileName}";
-
-                    using (var formData = new MultipartFormDataContent())
+                    try
                     {
-                        formData.Add(new StringContent(audioGuid), "guid");
-
-                        var fileStream = File.OpenRead(audioFilePath);
-                        var streamContent = new StreamContent(fileStream);
-                        streamContent.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("form-data")
-                        {
-                            Name = "audios",
-                            FileName = newFileName
-                        };
-                        formData.Add(streamContent);
-
-                        try
-                        {
-                            var response = await client.PostAsync("http://localhost:5000/Home/create", formData);
-                            response.EnsureSuccessStatusCode();
-                            var responseString = await response.Content.ReadAsStringAsync();
-                            MessageBox.Show(responseString);
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show("Erro ao enviar o arquivo: " + ex.Message);
-                        }
-                        finally
-                        {
-                            fileStream.Close();
-                        }
+                        var l_responseString = await Request.CreateAudio(m_audioGuid, m_audioFilePath);
+                        MessageBox.Show(l_responseString);
+                    }
+                    catch (Exception l_ex)
+                    {
+                        MessageBox.Show(l_ex.Message);
                     }
                 }
             }
         }
 
-        private async void DeleteButton_Click(object sender, EventArgs e)
+        private async void DeleteButton_Click(object p_sender, EventArgs p_e)
         {
-            audioGuid = guidTextBox.Text;
+            m_audioGuid = guidTextBox.Text;
             try
             {
-                var response = await client.DeleteAsync($"http://localhost:5000/Home/delete/{audioGuid}");
-                response.EnsureSuccessStatusCode();
-                var responseString = await response.Content.ReadAsStringAsync();
-                MessageBox.Show(responseString);
+                var l_responseString = await Request.DeleteAudio(m_audioGuid);
+                MessageBox.Show(l_responseString);
             }
-            catch (Exception ex)
+            catch (Exception l_ex)
             {
-                MessageBox.Show("Erro ao deletar o arquivo: " + ex.Message);
+                MessageBox.Show(l_ex.Message);
             }
         }
 
-        private async void UpdateButton_Click(object sender, EventArgs e)
+        private async void UpdateButton_Click(object p_sender, EventArgs p_e)
         {
-            audioGuid = guidTextBox.Text;
-            newAudioGuid = newGuidTextBox.Text;
+            m_audioGuid = guidTextBox.Text;
+            m_newAudioGuid = newGuidTextBox.Text;
 
             try
             {
-                using (var formData = new MultipartFormDataContent())
-                {
-                    formData.Add(new StringContent(newAudioGuid), "guid");
-
-                    using (OpenFileDialog openFileDialog = new OpenFileDialog())
-                    {
-                        openFileDialog.Filter = "Audio files (*.mp3;*.wav)|*.mp3;*.wav|All files (*.*)|*.*";
-                        if (openFileDialog.ShowDialog() == DialogResult.OK)
-                        {
-                            audioFilePath = openFileDialog.FileName;
-
-                            string fileName = Path.GetFileName(audioFilePath);
-                            string newFileName = $"{fileName}";
-
-                            var fileStream = File.OpenRead(audioFilePath);
-                            var streamContent = new StreamContent(fileStream);
-                            streamContent.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("form-data")
-                            {
-                                Name = "audios",
-                                FileName = newFileName
-                            };
-                            formData.Add(streamContent);
-
-                            var response = await client.PutAsync($"http://localhost:5000/Home/update/{audioGuid}", formData);
-                            response.EnsureSuccessStatusCode();
-
-                            var responseString = await response.Content.ReadAsStringAsync();
-                            MessageBox.Show(responseString);
-
-                            fileStream.Close();
-                        }
-                    }
-                }
+                var l_responseString = await Request.UpdateAudio(m_audioGuid, m_newAudioGuid, m_audioFilePath);
+                MessageBox.Show(l_responseString);
             }
-            catch (Exception ex)
+            catch (Exception l_ex)
             {
-                MessageBox.Show("Erro ao atualizar o arquivo: " + ex.Message);
+                MessageBox.Show(l_ex.Message);
             }
         }
 
-        private async void GetButton_Click(object sender, EventArgs e)
+        private async void GetButton_Click(object p_sender, EventArgs p_e)
         {
-            string audioGuid = guidTextBox.Text;
+            string l_audioGuid = guidTextBox.Text;
 
             try
             {
-                var response = await client.GetAsync($"http://localhost:5000/Home/{audioGuid}");
-                response.EnsureSuccessStatusCode();
-
-                var responseStream = await response.Content.ReadAsStreamAsync();
-
-                string downloadsPath = "\\\\wsl.localhost\\Ubuntu\\home\\kaue\\voxProjects\\api-audios\\downloads";
-
-                if (!Directory.Exists(downloadsPath))
-                {
-                    Directory.CreateDirectory(downloadsPath);
-                }
-
-                string fileName = $"{audioGuid}_downloaded_audio.mp3";
-                string downloadFilePath = Path.Combine(downloadsPath, fileName);
-
-                using (var fileStream = new FileStream(downloadFilePath, FileMode.Create, FileAccess.Write))
-                {
-                    await responseStream.CopyToAsync(fileStream);
-                }
-
-                MessageBox.Show($"Áudio baixado com sucesso em: {downloadFilePath}");
-
-                System.Diagnostics.Process.Start("explorer.exe", downloadsPath);
+                var l_downloadFilePath = await Request.GetAudio(l_audioGuid);
+                MessageBox.Show($"Áudio baixado com sucesso em: {l_downloadFilePath}");
+                System.Diagnostics.Process.Start("explorer.exe", l_downloadFilePath);
             }
-            catch (Exception ex)
+            catch (Exception l_ex)
             {
-                MessageBox.Show($"Erro ao baixar o arquivo: {ex.Message}");
+                MessageBox.Show(l_ex.Message);
             }
         }
     }
